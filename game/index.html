@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EMBERWARD — a lantern survival</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: #05050c; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+    color: #cfd6e4; overflow: hidden;
+    -webkit-user-select: none; user-select: none;
+  }
+  #stage {
+    position: relative;
+    width: min(100vw, 160vh);
+    aspect-ratio: 8 / 5;
+    container-type: inline-size;
+    background: #0a0a12;
+    box-shadow: 0 0 90px rgba(0,0,0,.9);
+  }
+  canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+  .hud { position: absolute; pointer-events: none; z-index: 5; }
+  .panel {
+    background: rgba(7, 8, 17, .78);
+    border: 1px solid rgba(130, 150, 220, .16);
+    border-radius: 10px;
+    padding: 1cqw 1.1cqw;
+  }
+  .panel-title {
+    font-size: 1.05cqw; letter-spacing: .22em; font-weight: 700;
+    color: #8fa3c8; margin-bottom: .55cqw;
+  }
+  .panel-title.warn { color: #ff9d7a; }
+  .panel ul { list-style: none; }
+  .panel li {
+    font-size: 1.12cqw; line-height: 1.5; display: flex; justify-content: space-between;
+    gap: 1.2cqw; white-space: nowrap;
+  }
+  .panel li .cnt { color: #ffd97a; font-weight: 700; }
+  .panel li.none { color: #5b6a86; font-size: 1cqw; }
+  .sub { font-size: .95cqw; color: #71809e; letter-spacing: .08em; margin-top: .45cqw; }
+
+  /* top centre: the night tracker */
+  #hud-night { top: 1.2%; left: 50%; transform: translateX(-50%); text-align: center; width: 34%; }
+  #night-label {
+    font-size: 2.5cqw; font-weight: 800; letter-spacing: .3em; color: #f2ecff;
+    text-shadow: 0 0 18px rgba(160, 140, 255, .45);
+  }
+  #dawn-bar {
+    height: .55cqw; margin: .5cqw auto .35cqw; border-radius: 99px;
+    background: rgba(255,255,255,.09); overflow: hidden;
+  }
+  #dawn-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #6a5cff, #ffb347, #ffe9a8);
+    border-radius: 99px; transition: width .3s linear;
+  }
+  #night-sub { font-size: 1cqw; letter-spacing: .24em; color: #93a5c9; }
+
+  /* top left: vitals + incoming */
+  #hud-vitals { top: 1.6%; left: 1.2%; width: 21.5%; }
+  .bar-row { display: flex; align-items: center; gap: .7cqw; margin: .32cqw 0; }
+  .bar-row .lab { font-size: .92cqw; letter-spacing: .18em; width: 5.6cqw; color: #93a5c9; font-weight: 700; }
+  .bar { flex: 1; height: .78cqw; background: rgba(255,255,255,.08); border-radius: 99px; overflow: hidden; }
+  .bar .fill { height: 100%; border-radius: 99px; transition: width .12s linear; }
+  .fill.hp { background: linear-gradient(90deg, #c62f3b, #ff5a5a); }
+  .fill.light { background: linear-gradient(90deg, #e08a1e, #ffc94d, #ffe9a8); }
+  .fill.stam { background: linear-gradient(90deg, #1f9e8a, #57e6c9); }
+  .bar-row .num { font-size: 1cqw; font-weight: 700; width: 2.6cqw; text-align: right; }
+  #hud-incoming { top: 21.5%; left: 1.2%; width: 21.5%; }
+  #incoming-list li .nm::before { content: "· "; color: #5b6a86; }
+
+  /* top right: score */
+  #hud-score { top: 1.6%; right: 1.2%; text-align: right; }
+  .score-line { font-size: 1.05cqw; letter-spacing: .2em; color: #93a5c9; line-height: 1.65; }
+  .score-line b { color: #f2ecff; font-size: 1.5cqw; letter-spacing: .04em; margin-left: .6cqw; }
+  .score-line.ember b { color: #ff9d45; }
+  .score-line.dim b { color: #93a5c9; font-size: 1.2cqw; }
+
+  /* right sidebar */
+  #hud-side { top: 21.5%; right: 1.2%; width: 19.5%; display: flex; flex-direction: column; gap: .8cqw; }
+  #threat-list li { display: block; }
+  #threat-list .trow { display: flex; justify-content: space-between; }
+  #threat-list .tbar { height: .5cqw; background: rgba(255,255,255,.09); border-radius: 99px; margin: .25cqw 0 .5cqw; overflow: hidden; }
+  #threat-list .tbar div { height: 100%; background: linear-gradient(90deg, #c62f3b, #ff7043); }
+
+  /* bottom hotbar */
+  #hud-hotbar {
+    bottom: 1.6%; left: 50%; transform: translateX(-50%);
+    display: flex; gap: .8cqw;
+  }
+  .slot {
+    position: relative; width: 6.4cqw; height: 6.4cqw; border-radius: 10px;
+    background: rgba(7, 8, 17, .82); border: 1px solid rgba(130, 150, 220, .22);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .slot .glyph { font-size: 2.1cqw; color: #ffd97a; line-height: 1; }
+  .slot .sname { font-size: .78cqw; letter-spacing: .1em; color: #93a5c9; margin-top: .3cqw; text-transform: uppercase; }
+  .slot .key {
+    position: absolute; top: .3cqw; left: .45cqw; font-size: .85cqw; font-weight: 800; color: #f2ecff;
+    background: rgba(255,255,255,.13); border-radius: 4px; padding: .05cqw .4cqw;
+  }
+  .slot .cd {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 0%;
+    background: rgba(4, 4, 10, .66); pointer-events: none;
+  }
+  .slot .cdnum {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 1.7cqw; font-weight: 800; color: #fff; text-shadow: 0 1px 6px #000;
+  }
+  .slot.broke { border-color: rgba(255, 90, 90, .5); }
+  .slot.broke .glyph { color: #ff8a7a; }
+
+  /* toast */
+  #toast {
+    top: 15%; left: 50%; transform: translateX(-50%); text-align: center;
+    opacity: 0; transition: opacity .3s;
+  }
+  #toast.show { opacity: 1; }
+  #toast .t-title { font-size: 1.9cqw; font-weight: 800; letter-spacing: .18em; color: #ffd97a; text-shadow: 0 0 16px rgba(255, 180, 60, .5); }
+  #toast .t-sub { font-size: 1.05cqw; color: #cfd6e4; letter-spacing: .06em; margin-top: .3cqw; }
+
+  /* overlays */
+  .overlay {
+    position: absolute; inset: 0; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(4, 4, 11, .72); text-align: center; padding: 3cqw;
+  }
+  .overlay.hidden { display: none; }
+  .overlay h1 {
+    font-size: 5.4cqw; letter-spacing: .34em; font-weight: 800; color: #ffe9a8;
+    text-shadow: 0 0 34px rgba(255, 170, 60, .55); margin-bottom: 1cqw;
+  }
+  .overlay h2 { font-size: 3.4cqw; letter-spacing: .26em; font-weight: 800; color: #f2ecff; margin-bottom: .8cqw; }
+  .overlay .story { font-size: 1.35cqw; color: #b9c4da; max-width: 52ch; line-height: 1.55; }
+  .overlay .controls {
+    margin: 1.6cqw 0; font-size: 1.1cqw; line-height: 1.9; color: #93a5c9; letter-spacing: .05em;
+  }
+  .overlay .controls b { color: #ffd97a; font-weight: 700; }
+  .big-btn {
+    pointer-events: auto; cursor: pointer; margin-top: 1.2cqw;
+    font: 800 1.5cqw system-ui, sans-serif; letter-spacing: .22em;
+    color: #14100a; background: linear-gradient(180deg, #ffe9a8, #ffb347);
+    border: 0; border-radius: 10px; padding: 1.1cqw 2.6cqw;
+    box-shadow: 0 0 26px rgba(255, 170, 60, .4);
+  }
+  .big-btn:hover { filter: brightness(1.1); }
+  .overlay .hint { margin-top: 1.4cqw; font-size: 1cqw; color: #5f708f; letter-spacing: .12em; }
+  #end-stats { font-size: 1.3cqw; line-height: 2; color: #b9c4da; }
+  #end-stats b { color: #ffd97a; }
+
+  /* blessing draft */
+  #draft { background: rgba(4, 4, 11, .55); }
+  .draft-title { font-size: 2cqw; letter-spacing: .24em; font-weight: 800; color: #f2ecff; margin-bottom: 1.8cqw; }
+  #draft-cards { display: flex; gap: 1.2cqw; pointer-events: auto; }
+  .card {
+    cursor: pointer; width: 17.5cqw; padding: 1.6cqw 1.3cqw; border-radius: 12px;
+    background: rgba(10, 12, 24, .92); border: 1px solid rgba(255, 201, 77, .35);
+    text-align: center; transition: transform .12s, box-shadow .12s;
+  }
+  .card:hover { transform: translateY(-4px); box-shadow: 0 10px 34px rgba(255, 170, 60, .25); }
+  .card .c-glyph { font-size: 3cqw; color: #ffd97a; }
+  .card .c-name { font-size: 1.45cqw; font-weight: 800; letter-spacing: .08em; margin: .7cqw 0 .5cqw; color: #f2ecff; }
+  .card .c-desc { font-size: 1.05cqw; color: #93a5c9; line-height: 1.5; }
+  .draft-sub { margin-top: 1.6cqw; font-size: 1.05cqw; color: #71809e; letter-spacing: .14em; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="game" width="1280" height="800"></canvas>
+
+  <div id="hud-night" class="hud">
+    <div id="night-label">NIGHT 1/10</div>
+    <div id="dawn-bar"><div id="dawn-fill"></div></div>
+    <div id="night-sub">THE DARK ARRIVES</div>
+  </div>
+
+  <div id="hud-vitals" class="hud panel">
+    <div class="bar-row"><span class="lab">HEALTH</span><div class="bar"><div id="bar-hp" class="fill hp"></div></div><span class="num" id="num-hp">100</span></div>
+    <div class="bar-row"><span class="lab">LIGHT</span><div class="bar"><div id="bar-light" class="fill light"></div></div><span class="num" id="num-light">100</span></div>
+    <div class="bar-row"><span class="lab">STAMINA</span><div class="bar"><div id="bar-stam" class="fill stam"></div></div><span class="num" id="num-stam">100</span></div>
+    <div class="sub" id="light-rate">LANTERN BURN −1.9/S</div>
+  </div>
+
+  <div id="hud-incoming" class="hud panel">
+    <div class="panel-title">INCOMING</div>
+    <ul id="incoming-list"></ul>
+    <div class="sub" id="incoming-eta"></div>
+  </div>
+
+  <div id="hud-score" class="hud">
+    <div class="score-line">SCORE<b id="score">0</b></div>
+    <div class="score-line dim">BEST<b id="best">0</b></div>
+    <div class="score-line ember">EMBERS<b id="embers">0</b></div>
+  </div>
+
+  <div id="hud-side" class="hud">
+    <div class="panel">
+      <div class="panel-title warn">THREAT QUEUE</div>
+      <ul id="threat-list"></ul>
+    </div>
+    <div class="panel">
+      <div class="panel-title">RELICS</div>
+      <ul id="relic-list"></ul>
+    </div>
+    <div class="panel">
+      <div class="panel-title">BLESSINGS</div>
+      <ul id="blessing-list"></ul>
+    </div>
+  </div>
+
+  <div id="hud-hotbar" class="hud">
+    <div class="slot" id="slot-nova"><div class="glyph">✷</div><div class="sname">Flare Nova</div><div class="key">1</div><div class="cd"></div><div class="cdnum"></div></div>
+    <div class="slot" id="slot-surge"><div class="glyph">✚</div><div class="sname">Oil Surge</div><div class="key">2</div><div class="cd"></div><div class="cdnum"></div></div>
+    <div class="slot" id="slot-ward"><div class="glyph">◈</div><div class="sname">Mirror Ward</div><div class="key">3</div><div class="cd"></div><div class="cdnum"></div></div>
+    <div class="slot" id="slot-dash"><div class="glyph">≫</div><div class="sname">Dash</div><div class="key">SPC</div><div class="cd"></div><div class="cdnum"></div></div>
+  </div>
+
+  <div id="toast" class="hud"><div class="t-title"></div><div class="t-sub"></div></div>
+
+  <div id="draft" class="overlay hidden">
+    <div class="draft-title">THE DARK RESTS — CHOOSE A BLESSING</div>
+    <div id="draft-cards"></div>
+    <div class="draft-sub" id="draft-timer"></div>
+  </div>
+
+  <div id="screen-title" class="overlay">
+    <h1>EMBERWARD</h1>
+    <p class="story">You are the last lantern keeper of the Hollowood. Your flame is the only
+      thing the dark still fears — but it drinks oil, and the night is long. Burn the shapes
+      that come for it, gather their embers, and keep the light alive until dawn.</p>
+    <div class="controls">
+      <b>WASD</b> move &nbsp;·&nbsp; <b>MOUSE</b> aim &nbsp;·&nbsp; <b>HOLD LMB</b> lantern beam<br>
+      <b>SPACE</b> dash &nbsp;·&nbsp; <b>1</b> Flare Nova &nbsp;·&nbsp; <b>2</b> Oil Surge (15 embers → +25 light) &nbsp;·&nbsp; <b>3</b> Mirror Ward<br>
+      <b>ESC / P</b> pause &nbsp;·&nbsp; <b>M</b> mute
+    </div>
+    <button id="btn-start" class="big-btn">LIGHT THE LANTERN</button>
+    <p class="hint">Survive all 10 nights. If the light dies, so do you.</p>
+  </div>
+
+  <div id="screen-pause" class="overlay hidden">
+    <h2>PAUSED</h2>
+    <p class="story">The dark waits, patient as ever.</p>
+    <button id="btn-resume" class="big-btn">RESUME</button>
+  </div>
+
+  <div id="screen-end" class="overlay hidden">
+    <h2 id="end-title">DAWN BREAKS</h2>
+    <p class="story" id="end-sub"></p>
+    <div id="end-stats"></div>
+    <button id="btn-restart" class="big-btn">PLAY AGAIN</button>
+  </div>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
