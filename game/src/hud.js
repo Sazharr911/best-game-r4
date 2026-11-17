@@ -22,19 +22,22 @@ export class Hud {
   constructor() {
     this.el = {
       nightLabel: $('night-label'), nightSub: $('night-sub'), dawnFill: $('dawn-fill'),
+      boss: $('hud-boss'), bossName: $('boss-name'), bossFill: $('boss-fill'), bossPips: $('boss-pips'),
       hp: $('bar-hp'), light: $('bar-light'), stam: $('bar-stam'),
       numHp: $('num-hp'), numLight: $('num-light'), numStam: $('num-stam'),
       lightRate: $('light-rate'),
       score: $('score'), best: $('best'), embers: $('embers'),
+      chainLine: $('chain-line'), chain: $('chain'),
       incoming: $('incoming-list'), incomingEta: $('incoming-eta'),
       threat: $('threat-list'), relics: $('relic-list'), blessings: $('blessing-list'),
       toast: $('toast'),
-      slots: { nova: $('slot-nova'), surge: $('slot-surge'), ward: $('slot-ward'), dash: $('slot-dash') },
+      slots: { nova: $('slot-nova'), surge: $('slot-surge'), ward: $('slot-ward'), prism: $('slot-prism'), dash: $('slot-dash') },
       draft: $('draft'), draftCards: $('draft-cards'), draftTimer: $('draft-timer'),
       title: $('screen-title'), pause: $('screen-pause'), end: $('screen-end'),
       endTitle: $('end-title'), endSub: $('end-sub'), endStats: $('end-stats'),
     };
     this.sigs = { incoming: '', threat: '', relics: '', blessings: '' };
+    this.bossSig = '';
     this.toastTimer = 0;
   }
 
@@ -72,11 +75,44 @@ export class Hud {
     this.el.score.textContent = G.score.toLocaleString('en-US');
     this.el.best.textContent = G.best.toLocaleString('en-US');
     this.el.embers.textContent = G.embers;
+    const chainOn = G.chain.n >= 3;
+    this.el.chainLine.classList.toggle('hidden', !chainOn);
+    if (chainOn) this.el.chain.textContent = `×${G.chain.n}`;
 
     this.updateIncoming(G);
     this.updateThreat(G);
     this.updateOwned(G);
     this.updateSlots(G);
+    this.updateBoss(G);
+  }
+
+  // The boss bar lives under the DAY header while any Pyre Husk stands: its name,
+  // its health, and — for the Dread Pyre alone — three pips that light as its
+  // phases turn. The phase is read off the health fraction, the same thresholds
+  // the Pyre itself rages at (66% / 33%), so bar and boss can never disagree.
+  updateBoss(G) {
+    const boss = G.enemies.find((e) => e.type === 'elite' && G.night === 10)
+      || G.enemies.find((e) => e.type === 'elite');
+    if (!boss) {
+      if (this.bossSig !== 'none') {
+        this.bossSig = 'none';
+        this.el.boss.classList.add('hidden');
+      }
+      return;
+    }
+    const isPyre = G.night === 10;
+    const frac = Math.max(0, boss.hp / boss.maxHp);
+    const phase = frac <= 0.33 ? 3 : frac <= 0.66 ? 2 : 1;
+    this.el.boss.classList.remove('hidden');
+    this.el.bossFill.style.width = `${(frac * 100).toFixed(1)}%`;
+    const sig = `${isPyre ? 'pyre' : 'husk'}|${phase}`;
+    if (sig !== this.bossSig) {
+      this.bossSig = sig;
+      this.el.bossName.textContent = isPyre ? 'THE DREAD PYRE' : 'PYRE HUSK';
+      this.el.bossPips.innerHTML = isPyre
+        ? [1, 2, 3].map((i) => `<span class="pip${i <= phase ? ' on' : ''}">◆</span>`).join('')
+        : '';
+    }
   }
 
   updateIncoming(G) {
@@ -141,6 +177,11 @@ export class Hud {
     set(this.el.slots.nova, G.skills.nova.t, SKILLS.nova.cooldown * G.stats.skillCooldownMult, false);
     set(this.el.slots.surge, G.skills.surge.t, SKILLS.surge.cooldown * G.stats.skillCooldownMult, G.embers < SKILLS.surge.emberCost);
     set(this.el.slots.ward, G.skills.ward.t, SKILLS.ward.cooldown * G.stats.skillCooldownMult, false);
+    // The prism slot is a satchel readout, not a cooldown: how many shards the
+    // keeper carries, and a dim frame while their hands are empty.
+    const ps = this.el.slots.prism;
+    ps.querySelector('.sname').textContent = `Prism ×${G.prismCarried}`;
+    ps.classList.toggle('broke', G.prismCarried <= 0);
     set(this.el.slots.dash, G.player.dashCdT, G.stats.dashCooldown, G.player.stamina < G.stats.dashCost);
   }
 

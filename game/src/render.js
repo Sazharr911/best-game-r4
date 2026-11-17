@@ -4,11 +4,15 @@
 // enemy glows leak back through the sheet, so what waits beyond the light is a smudge of
 // colour, never a silhouette. Plain 2D canvas throughout — no WebGL.
 
-import { ENEMIES, PALETTE, VIEW_H, VIEW_W } from './config.js';
+import { ENEMIES, PALETTE, PRISM, VIEW_H, VIEW_W } from './config.js';
 import { lightRadius } from './entities.js';
 
 // Drawn body size per hunter, as a multiple of the (unchanged) collision radius.
-const VIS_SCALE = { shade: 1.5, howler: 1.45, wraith: 1.5, stalker: 1.55, elite: 1.6 };
+const VIS_SCALE = { shade: 1.5, howler: 1.45, wraith: 1.5, stalker: 1.55, elite: 1.8 };
+
+// The keeper is drawn at this scale; its collision radius and every logic number
+// stay exactly as they were — only the drawing grew, so the character reads.
+const KEEPER_SCALE = 1.35;
 
 function makeGlow(color) {
   const c = document.createElement('canvas');
@@ -83,6 +87,7 @@ export class Renderer {
     this.drawRunes(G, ctx);
     this.drawBraziers(G, ctx);
     this.drawPickups(G, ctx);
+    this.drawPrisms(G, ctx);
     for (const e of G.enemies) this.drawEnemy(G, ctx, e);
     this.drawProjectiles(G, ctx);
     this.drawPlayer(G, ctx);
@@ -266,8 +271,64 @@ export class Renderer {
     }
   }
 
+  // A dropped Prism Shard: a small turning crystal waiting to be carried.
+  drawShard(G, ctx, pk) {
+    const blink = pk.life - pk.t < 4 ? (Math.sin(G.time * 14) > 0 ? 1 : 0.25) : 1;
+    const bob = Math.sin(G.time * 3 + pk.x) * 2.5;
+    ctx.save();
+    ctx.globalAlpha = blink;
+    this.drawGlow(ctx, '#6fe3ff', pk.x, pk.y + bob, 24, 0.55);
+    ctx.translate(pk.x, pk.y + bob);
+    ctx.rotate(G.time * 1.4 + pk.x);
+    ctx.fillStyle = '#dff6ff';
+    ctx.strokeStyle = '#37e0d8';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(0, -8); ctx.lineTo(5.5, 0); ctx.lineTo(0, 8); ctx.lineTo(-5.5, 0);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+
+  // A set prism: a faceted crystal standing in the dark, slowly turning, its
+  // heart flaring white while the beam is splitting on it.
+  drawPrisms(G, ctx) {
+    for (const pr of G.prisms) {
+      const left = pr.life - pr.t;
+      const pulse = left < 3
+        ? (Math.sin(G.time * 16) > 0 ? 1 : 0.35)
+        : 0.8 + 0.2 * Math.sin(G.time * 2.4 + pr.seed);
+      this.drawGlow(ctx, '#37e0d8', pr.x, pr.y, 42, 0.4 * pulse);
+      ctx.save();
+      ctx.translate(pr.x, pr.y);
+      ctx.rotate(G.time * 0.7 + pr.seed);
+      const r = PRISM.radius + 5;
+      const grad = ctx.createLinearGradient(-r, -r, r, r);
+      grad.addColorStop(0, 'rgba(230,250,255,0.95)');
+      grad.addColorStop(0.5, 'rgba(140,225,245,0.75)');
+      grad.addColorStop(1, 'rgba(70,160,220,0.85)');
+      ctx.fillStyle = grad;
+      ctx.strokeStyle = `rgba(190,245,255,${0.9 * pulse})`;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(0, -r); ctx.lineTo(r * 0.72, 0); ctx.lineTo(0, r); ctx.lineTo(-r * 0.72, 0);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, -r); ctx.lineTo(0, r);
+      ctx.moveTo(-r * 0.72, 0); ctx.lineTo(r * 0.72, 0);
+      ctx.stroke();
+      ctx.restore();
+      if (G.beam.splitFrom === pr) {
+        this.drawGlow(ctx, '#ffffff', pr.x, pr.y, 34, 0.9);
+        this.drawGlow(ctx, '#9be8ff', pr.x, pr.y, 60, 0.5);
+      }
+    }
+  }
+
   drawPickups(G, ctx) {
     for (const pk of G.pickups) {
+      if (pk.kind === 'shard') { this.drawShard(G, ctx, pk); continue; }
       const blink = pk.life - pk.t < 4 ? (Math.sin(G.time * 14) > 0 ? 1 : 0.25) : 1;
       const bob = Math.sin(G.time * 3 + pk.x) * 2.5;
       ctx.save();
@@ -314,7 +375,11 @@ export class Renderer {
       const closeness = Math.max(0, Math.min(1, 1 - dist / (lit * 1.6)));
       glowAlpha = 0.14 + 0.5 * closeness;
     }
-    this.drawGlow(ctx, def.glow, e.x, e.y, vr * 2.6, glowAlpha);
+    // The Pyre's halo is kept tighter and thinner than the other hunters':
+    // at full size and strength it washed the spiked crown out to a ball.
+    const glowR = e.type === 'elite' ? vr * 2.2 : vr * 2.6;
+    if (e.type === 'elite') glowAlpha = 0.38;
+    this.drawGlow(ctx, def.glow, e.x, e.y, glowR, glowAlpha);
 
     const speed = Math.hypot(e.vx, e.vy);
     if (e.type === 'shade' && speed > 5) {
@@ -347,17 +412,19 @@ export class Renderer {
     }
 
     if (e.type === 'elite') {
-      // The Pyre: a great crown of blackened shards turning around a molten heart.
+      // The Pyre: a great crown of blackened shards turning around a molten
+      // heart. The shards are near-black and wide — silhouettes against the
+      // husk's own smoulder, or they vanish into it.
       ctx.save();
       ctx.translate(e.x, e.y);
       ctx.rotate(e.t * 0.7);
-      ctx.fillStyle = '#4a1202';
+      ctx.fillStyle = '#260b01';
       for (let i = 0; i < 16; i++) {
         ctx.rotate(Math.PI / 8);
         ctx.beginPath();
-        ctx.moveTo(vr * 0.78, -6.5);
-        ctx.lineTo(vr * 1.5, 0);
-        ctx.lineTo(vr * 0.78, 6.5);
+        ctx.moveTo(vr * 0.78, -9.5);
+        ctx.lineTo(vr * 1.66, 0);
+        ctx.lineTo(vr * 0.78, 9.5);
         ctx.closePath();
         ctx.fill();
       }
@@ -365,17 +432,28 @@ export class Renderer {
     }
 
     const grad = ctx.createRadialGradient(e.x - vr * 0.3, e.y - vr * 0.35, vr * 0.15, e.x, e.y, vr);
-    grad.addColorStop(0, '#ffffff');
-    grad.addColorStop(0.25, def.color);
-    grad.addColorStop(1, e.type === 'stalker' ? shadeColor(def.color, 0.16) : shadeColor(def.color));
+    if (e.type === 'elite') {
+      // The Pyre's body must stay a burning husk, never a white moon: its
+      // gradient runs hot amber into ember-red, not the white core the
+      // smaller hunters get — between the white centre, the molten core and
+      // the hit flash, the old body blew out to a plain bright orb.
+      grad.addColorStop(0, '#ff9a4d');
+      grad.addColorStop(0.35, def.color);
+      grad.addColorStop(1, shadeColor(def.color, 0.26));
+    } else {
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.25, def.color);
+      grad.addColorStop(1, e.type === 'stalker' ? shadeColor(def.color, 0.16) : shadeColor(def.color));
+    }
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(e.x, e.y, vr, 0, Math.PI * 2); ctx.fill();
 
     if (e.type === 'elite') {
-      // A bright heart and glowing cracks across the husk.
-      const core = ctx.createRadialGradient(e.x, e.y, 1, e.x, e.y, vr * 0.42);
-      core.addColorStop(0, 'rgba(255,246,220,0.95)');
-      core.addColorStop(0.6, 'rgba(255,160,80,0.75)');
+      // A molten heart and glowing cracks across the husk — hot, but kept
+      // amber rather than white-hot so the heart reads as fire, not glare.
+      const core = ctx.createRadialGradient(e.x, e.y, 1, e.x, e.y, vr * 0.34);
+      core.addColorStop(0, 'rgba(255,200,130,0.85)');
+      core.addColorStop(0.6, 'rgba(255,140,60,0.6)');
       core.addColorStop(1, 'rgba(255,120,50,0)');
       ctx.fillStyle = core;
       ctx.beginPath(); ctx.arc(e.x, e.y, vr * 0.42, 0, Math.PI * 2); ctx.fill();
@@ -397,15 +475,15 @@ export class Renderer {
       ctx.save();
       ctx.translate(e.x, e.y);
       ctx.rotate(e.t * 0.7);
-      ctx.fillStyle = '#6e2708';
-      ctx.strokeStyle = 'rgba(255,130,55,0.6)';
-      ctx.lineWidth = 1;
+      ctx.fillStyle = '#8a3408';
+      ctx.strokeStyle = 'rgba(255,170,85,1)';
+      ctx.lineWidth = 2;
       for (let i = 0; i < 16; i++) {
         ctx.rotate(Math.PI / 8);
         ctx.beginPath();
-        ctx.moveTo(vr * 1.18, -3.4);
-        ctx.lineTo(vr * 1.52, 0);
-        ctx.lineTo(vr * 1.18, 3.4);
+        ctx.moveTo(vr * 1.18, -4.6);
+        ctx.lineTo(vr * 1.68, 0);
+        ctx.lineTo(vr * 1.18, 4.6);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
@@ -459,9 +537,9 @@ export class Renderer {
     }
 
     if (e.flash > 0) {
-      // The Pyre is too big to flash full white — cap its flash so it stays a
-      // burning husk, not a moon, while the beam is on it.
-      const cap = e.type === 'elite' ? 0.38 : 0.85;
+      // The Pyre is too big to flash full white — cap its flash hard so it
+      // stays a burning husk, not a moon, while the beam is on it.
+      const cap = e.type === 'elite' ? 0.15 : 0.85;
       ctx.globalAlpha = Math.min(cap, e.flash * 8) * alpha;
       ctx.fillStyle = '#ffffff';
       ctx.beginPath(); ctx.arc(e.x, e.y, vr, 0, Math.PI * 2); ctx.fill();
@@ -490,12 +568,14 @@ export class Renderer {
   }
 
   // Where the lantern hangs: out at the keeper's leading hand, toward the aim.
+  // The keeper is DRAWN at KEEPER_SCALE (below); the lantern rides at the scaled
+  // reach so hand, lantern and beam origin stay in agreement.
   lanternPos(G) {
     const p = G.player;
     const bob = Math.sin(G.time * 6) * 1.6;
     return {
-      x: p.x + Math.cos(p.aim + 0.8) * 20,
-      y: p.y + Math.sin(p.aim + 0.8) * 20 + bob,
+      x: p.x + Math.cos(p.aim + 0.8) * 27,
+      y: p.y + Math.sin(p.aim + 0.8) * 27 + bob,
       bob,
     };
   }
@@ -519,6 +599,7 @@ export class Renderer {
         ctx.save();
         ctx.translate(p.x - gdx * k * 17, p.y - gdy * k * 17);
         ctx.rotate(Math.atan2(gdy, gdx) + Math.PI / 2);
+        ctx.scale(KEEPER_SCALE, KEEPER_SCALE);
         ctx.globalAlpha = 0.20 / k;
         ctx.fillStyle = '#7fb2d9';
         ctx.beginPath();
@@ -533,6 +614,7 @@ export class Renderer {
 
     ctx.save();
     ctx.translate(p.x, p.y + bob);
+    ctx.scale(KEEPER_SCALE, KEEPER_SCALE);
     // Shadow.
     ctx.fillStyle = 'rgba(0,0,0,0.42)';
     ctx.beginPath(); ctx.ellipse(0, 21 - bob, 16, 6, 0, 0, Math.PI * 2); ctx.fill();
@@ -584,6 +666,7 @@ export class Renderer {
     this.drawGlow(ctx, '#ffca6a', l.x, l.y, 44 + flick, 0.8);
     ctx.save();
     ctx.translate(l.x, l.y);
+    ctx.scale(KEEPER_SCALE, KEEPER_SCALE);
     ctx.fillStyle = '#241a08';
     ctx.fillRect(-2, -13, 4, 3.4); // hanger
     ctx.beginPath(); ctx.arc(0, -13.5, 2.4, 0, Math.PI * 2); ctx.strokeStyle = '#8a6a20'; ctx.lineWidth = 1.2; ctx.stroke();
@@ -610,11 +693,11 @@ export class Renderer {
     if (p.wardT > 0) {
       ctx.strokeStyle = `rgba(155,232,255,${0.55 + 0.3 * Math.sin(G.time * 10)})`;
       ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(p.x, p.y, 32 + Math.sin(G.time * 5) * 1.6, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(p.x, p.y, 43 + Math.sin(G.time * 5) * 1.6, 0, Math.PI * 2); ctx.stroke();
     }
     if (p.iframes > 0 && p.dashT > 0) {
       ctx.strokeStyle = 'rgba(155,232,255,0.35)';
-      ctx.beginPath(); ctx.arc(p.x, p.y, 26, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(p.x, p.y, 35, 0, Math.PI * 2); ctx.stroke();
     }
   }
 
@@ -650,6 +733,26 @@ export class Renderer {
     cone(G.stats.beamHalfWidth * 2.6, 0.16, 0.05);
     cone(G.stats.beamHalfWidth * 1.35, 0.30, 0.10);
     ctx.restore();
+
+    // The daughters: cooler, dimmer cones fanning out of the prism.
+    for (const sp of G.beam.splits) {
+      const slen = Math.max(24, sp.len);
+      const half = Math.atan2(G.stats.beamHalfWidth * 1.35, slen);
+      ctx.save();
+      ctx.translate(sp.x1, sp.y1);
+      ctx.rotate(sp.ang);
+      const g2 = ctx.createLinearGradient(0, 0, slen, 0);
+      g2.addColorStop(0, `rgba(190,235,255,${0.20 * flick})`);
+      g2.addColorStop(0.6, `rgba(150,210,255,${0.08 * flick})`);
+      g2.addColorStop(1, 'rgba(150,210,255,0)');
+      ctx.fillStyle = g2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, slen, -half, half);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   drawBeamCore(G, ctx) {
@@ -684,6 +787,21 @@ export class Renderer {
       ctx.moveTo(b.hitX + Math.cos(ang) * 3, b.hitY + Math.sin(ang) * 3);
       ctx.lineTo(b.hitX + Math.cos(ang) * dist, b.hitY + Math.sin(ang) * dist);
       ctx.stroke();
+    }
+
+    // The daughters' cores: the same thin thread, a touch dimmer and cooler,
+    // with their own flare where they bite.
+    for (const sp of G.beam.splits) {
+      ctx.strokeStyle = `rgba(230,248,255,${0.75 * flick})`;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.moveTo(sp.x1, sp.y1); ctx.lineTo(sp.x2, sp.y2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(sp.x1, sp.y1); ctx.lineTo(sp.x2, sp.y2); ctx.stroke();
+      if (sp.target) {
+        this.drawGlow(ctx, '#dff6ff', sp.x2, sp.y2, 30, 0.8 * flick);
+        this.drawGlow(ctx, '#ffffff', sp.x2, sp.y2, 10, 0.85);
+      }
     }
     ctx.restore();
   }
@@ -736,9 +854,10 @@ export class Renderer {
       d.beginPath(); d.arc(b.x, b.y - 12, br, 0, Math.PI * 2); d.fill();
     }
 
-    // The beam cuts a hard cone through the sheet.
+    // The beam cuts a hard cone through the sheet — only as far as the light
+    // actually travels, which is the prism when one takes the beam.
     if (G.beam.firing && G.screen === 'playing') {
-      const len = G.stats.beamLength + 46;
+      const len = G.beam.length + 46;
       const half = 0.17;
       d.save();
       d.translate(p.x, p.y);
@@ -753,6 +872,33 @@ export class Renderer {
       d.closePath();
       d.fill();
       d.restore();
+
+      // The refracted daughters cut their own narrower, weaker cones.
+      for (const sp of G.beam.splits) {
+        const slen = sp.len + 30;
+        d.save();
+        d.translate(sp.x1, sp.y1);
+        d.rotate(sp.ang);
+        const sg = d.createLinearGradient(0, 0, slen, 0);
+        sg.addColorStop(0, 'rgba(0,0,0,0.8)');
+        sg.addColorStop(1, 'rgba(0,0,0,0)');
+        d.fillStyle = sg;
+        d.beginPath();
+        d.moveTo(0, 0);
+        d.arc(0, 0, slen, -0.12, 0.12);
+        d.closePath();
+        d.fill();
+        d.restore();
+      }
+    }
+
+    // A set prism glints through the dark around itself.
+    for (const pr of G.prisms) {
+      g = d.createRadialGradient(pr.x, pr.y, 1, pr.x, pr.y, 30);
+      g.addColorStop(0, 'rgba(0,0,0,0.4)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      d.fillStyle = g;
+      d.beginPath(); d.arc(pr.x, pr.y, 30, 0, Math.PI * 2); d.fill();
     }
 
     // Oil flasks and elites smoulder through the dark.
@@ -792,6 +938,10 @@ export class Renderer {
     // Fireflies shine straight through the dark, faintly.
     for (const m of this.motes) {
       this.drawGlow(ctx, m.hue, m.x, m.y, 7, 0.10 + 0.05 * Math.sin(G.time * 2.1 + m.ph * 3));
+    }
+    // Set prisms leak a cool glint, so their geometry stays readable in the dark.
+    for (const pr of G.prisms) {
+      this.drawGlow(ctx, '#37e0d8', pr.x, pr.y, 26, 0.12 + 0.04 * Math.sin(G.time * 2.4 + pr.seed));
     }
     // Brazier flames bloom over the sheet's edge, so their pools feel lit
     // from inside rather than merely uncovered.

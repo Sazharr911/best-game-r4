@@ -27,6 +27,7 @@ export class Input {
     });
     canvas.addEventListener('mousedown', (e) => {
       if (e.button === 0) { this.mouse.down = true; this.events.push({ type: 'mousedown' }); }
+      if (e.button === 2) { this.events.push({ type: 'mousedown-right' }); }
     });
     window.addEventListener('mouseup', (e) => { if (e.button === 0) this.mouse.down = false; });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());

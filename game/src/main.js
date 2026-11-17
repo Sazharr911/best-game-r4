@@ -14,8 +14,8 @@ import { World } from './world.js';
 import { Renderer } from './render.js';
 import { Hud } from './hud.js';
 import {
-  castSkill, makePlayer, spawnEnemy, tryDash,
-  updateBeam, updateEnemies, updateParticles, updatePickups, updatePlayer, updateProjectiles,
+  castSkill, makePlayer, placePrism, spawnEnemy, tryDash,
+  updateBeam, updateEnemies, updateParticles, updatePickups, updatePlayer, updatePrisms, updateProjectiles,
 } from './entities.js';
 import { buildQueue, directorStep, totalForNight } from './waves.js';
 import { BLESSINGS, FILLER_CARDS, RELICS, computeStats } from './upgrades.js';
@@ -75,8 +75,12 @@ const G = {
   particles: [],
   texts: [],
   rings: [],
+  prisms: [],
+  prismCarried: 0,
+  splitEvents: 0,
+  chain: { n: 0, last: -10 },
   skills: { nova: { t: 0 }, surge: { t: 0 }, ward: { t: 0 } },
-  beam: { firing: false, target: null, hitX: 0, hitY: 0, length: 0 },
+  beam: { firing: false, target: null, hitX: 0, hitY: 0, length: 0, splits: [], splitFrom: null },
   shake: 0,
   emberAcc: 0,
   hitAcc: 0,
@@ -96,6 +100,10 @@ G.input = new Input(canvas);
 G.world = new World(G.rng);
 const renderer = new Renderer();
 const hud = new Hud();
+
+// Simulation modules raise banner toasts through this hook (relic wins already
+// call hud directly from main; prism and boss events live in entities.js).
+G.toast = (title, sub) => hud.toast(title, sub);
 
 G.spawnEnemyOf = (type) => spawnEnemy(G, type);
 
@@ -167,6 +175,10 @@ function beginRun() {
   G.particles = [];
   G.texts = [];
   G.rings = [];
+  G.prisms = [];
+  G.prismCarried = 0;
+  G.splitEvents = 0;
+  G.chain = { n: 0, last: -10 };
   G.skills = { nova: { t: 0 }, surge: { t: 0 }, ward: { t: 0 } };
   G.dawnT = 0;
   G.endReason = '';
@@ -190,6 +202,7 @@ function enterIntermission() {
   G.screen = 'intermission';
   G.interT = G.fast ? 3 : INTERMISSION_SECONDS;
   G.beam.firing = false;
+  G.projectiles = []; // a dead Husk's last bolts die with its night — they must not hang frozen through the draft and strike in the next
   hud.toast(`DAY ${89 + G.night} SURVIVED`, 'The dark pulls back to breathe. Choose.');
   G.draft = rollDraft();
   hud.showDraft(G.draft, pickBlessing);
@@ -225,6 +238,10 @@ function togglePause(force) {
 
 function handleEvents() {
   for (const ev of G.input.drainEvents()) {
+    if (ev.type === 'mousedown-right') {
+      if (G.screen === 'playing' && !G.paused) placePrism(G);
+      continue;
+    }
     if (ev.type !== 'keydown') continue;
     if (ev.code === 'Escape' || ev.code === 'KeyP') togglePause();
     if (ev.code === 'KeyM') {
@@ -236,6 +253,7 @@ function handleEvents() {
     if (ev.code === 'Digit1') castSkill(G, 'nova');
     if (ev.code === 'Digit2') castSkill(G, 'surge');
     if (ev.code === 'Digit3') castSkill(G, 'ward');
+    if (ev.code === 'KeyE') placePrism(G);
   }
 }
 
@@ -246,6 +264,7 @@ function update(dt) {
 
   if (G.screen === 'playing') {
     G.nightTime += dt;
+    if (G.chain.n > 0 && G.time - G.chain.last > 2.5) G.chain.n = 0;
     for (const k of Object.keys(G.skills)) G.skills[k].t = Math.max(0, G.skills[k].t - dt);
     G.beam.firing = G.input.mouse.down || G.stageFire;
     if (!G.staged) directorStep(G, dt);
@@ -254,6 +273,7 @@ function update(dt) {
     updateEnemies(G, dt);
     updateProjectiles(G, dt);
     updatePickups(G, dt);
+    updatePrisms(G, dt);
     updateParticles(G, dt);
     if (G.screen === 'playing' && !G.staged && G.spawnQueue.length === 0 && G.enemies.length === 0) {
       if (G.night >= TOTAL_NIGHTS) victory();
@@ -264,6 +284,7 @@ function update(dt) {
     hud.setDraftTimer(`DAY ${89 + G.night + 1} AT DUSK IN ${Math.max(0, Math.ceil(G.interT))} — OR CLICK A BLESSING`);
     updatePlayer(G, dt);
     updatePickups(G, dt);
+    updatePrisms(G, dt);
     updateParticles(G, dt);
     if (G.interT <= 0 && G.draft.length > 0) pickBlessing(G.draft[0]);
   } else if (G.screen === 'victory') {
@@ -318,10 +339,21 @@ window.EMBERWARD = {
       light: Math.round(G.player.light * 10) / 10, hp: Math.round(G.player.hp),
       player: { x: Math.round(G.player.x), y: Math.round(G.player.y) },
       queue: G.spawnQueue.length,
+      prismCarried: G.prismCarried,
+      prismsPlaced: G.prisms.length,
+      splits: G.splitEvents,
+      chain: G.chain.n,
       stamina: Math.round(G.player.stamina),
       skills: { nova: G.skills.nova.t, surge: G.skills.surge.t, ward: G.skills.ward.t },
       pickups: G.pickups.map((pk) => ({ x: Math.round(pk.x), y: Math.round(pk.y) })),
       enemies: G.enemies.map((e) => ({ type: e.type, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp), solid: e.type !== 'wraith' || e.solid })),
     };
+  },
+  // Documented test hook (TESTS.md, Scenario C): drops a Prism Shard pickup beside
+  // the keeper through the very object a wraith's death drops, so the play test can
+  // collect it with real movement and set it with a real right-click. It grants
+  // nothing by itself — the shard still has to be walked over and carried.
+  debugDropShard() {
+    G.pickups.push({ x: G.player.x + 34, y: G.player.y, t: 0, life: 25, kind: 'shard' });
   },
 };

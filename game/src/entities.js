@@ -3,7 +3,7 @@
 // the shared game state G (built in main.js) and a dt in seconds. Combat numbers come from
 // config.js and G.stats (the relic/blessing-folded copy from upgrades.js).
 
-import { ARENA, ENEMIES, LIGHT, SKILLS, VIEW_H, VIEW_W } from './config.js';
+import { ARENA, ENEMIES, LIGHT, PRISM, SKILLS, VIEW_H, VIEW_W } from './config.js';
 import { intRange, range } from './random.js';
 
 export function makePlayer() {
@@ -38,6 +38,8 @@ export function burst(G, x, y, { n = 10, color = '#ffd97a', speed = 120, size = 
 
 export function floatText(G, x, y, text, color = '#ffd97a', size = 15) {
   G.texts.push({ x, y, vy: -34, life: 0.9, maxLife: 0.9, text, color, size });
+  // Pooled and capped: a massacre sheds its oldest shouts first.
+  if (G.texts.length > 40) G.texts.splice(0, G.texts.length - 40);
 }
 
 export function updateParticles(G, dt) {
@@ -92,6 +94,8 @@ function makeEnemy(G, type, x, y) {
     atkCd: 0, flash: 0, t: G.rng() * 10, shootCd: range(G.rng, 1, 2),
     mode: 'stalk', modeT: 0, coolT: 0, phaseT: G.rng() * 3.9, solid: true,
     orbitDir: G.rng() > 0.5 ? 1 : -1, dead: false,
+    // Only the tenth night's elite is the Dread Pyre, and only it has phases.
+    boss: type === 'elite' && G.night === 10, phase: 1,
   };
 }
 
@@ -118,13 +122,62 @@ export function damageEnemy(G, e, dmg, kbx = 0, kby = 0) {
   e.hp -= dmg;
   e.flash = 0.09;
   e.kbx += kbx; e.kby += kby;
+  if (e.boss && e.hp > 0) {
+    const frac = e.hp / e.maxHp;
+    const reached = frac <= 0.33 ? 3 : frac <= 0.66 ? 2 : 1;
+    while (e.phase < reached) {
+      e.phase += 1;
+      bossPhaseEvent(G, e, e.phase);
+    }
+  }
   if (e.hp <= 0) killEnemy(G, e);
+}
+
+// The Dread Pyre does not go quietly. Crossing into a new phase (66% / 33% of its
+// health) it rages: a banner across the dark, a ring volley of its own fire —
+// 5 bolts, 7 in the last phase — and two shades called out of the trees to it.
+// (Softened twice from 8/12 bolts and 3 shades: the first cut nearly killed
+// the play-test bot in the final fight — see TESTS.md.)
+// Regular Pyre Husks never do any of this; they stay single-phase.
+function bossPhaseEvent(G, e, phase) {
+  for (let i = 0; i < 2; i++) {
+    const a = (i / 2) * Math.PI * 2 + G.rng() * 0.8;
+    const x = Math.min(ARENA.x + ARENA.w - 20, Math.max(ARENA.x + 20, e.x + Math.cos(a) * 82));
+    const y = Math.min(ARENA.y + ARENA.h - 20, Math.max(ARENA.y + 20, e.y + Math.sin(a) * 82));
+    spawnEnemyAt(G, 'shade', x, y);
+    burst(G, x, y, { n: 8, color: ENEMIES.shade.glow, speed: 60, size: 2, life: 0.4 });
+  }
+  const bolts = phase === 3 ? 7 : 5;
+  for (let i = 0; i < bolts; i++) {
+    const a = (i / bolts) * Math.PI * 2 + G.rng() * 0.3;
+    G.projectiles.push({
+      x: e.x, y: e.y, vx: Math.cos(a) * ENEMIES.elite.boltSpeed, vy: Math.sin(a) * ENEMIES.elite.boltSpeed,
+      r: 5, dmg: ENEMIES.elite.boltDamage, t: 0, life: 4.5,
+    });
+  }
+  G.rings.push({ x: e.x, y: e.y, r: 0, maxR: 150, t: 0, dur: 0.55, color: '#ff7043' });
+  burst(G, e.x, e.y, { n: 30, color: '#ff7043', speed: 220, size: 2.8, life: 0.6 });
+  G.shake = Math.max(G.shake, 6);
+  G.toast?.(
+    phase === 2 ? 'THE DREAD PYRE RAGES — PHASE II' : 'PHASE III — LAST EMBERS',
+    'It calls the dark to its side',
+  );
+  G.sfx.nova();
 }
 
 export function killEnemy(G, e) {
   e.dead = true;
   const def = ENEMIES[e.type];
   G.kills += 1;
+  // The chain: a kill landed within 2.5 s of the last one stacks it. Pure
+  // feedback — it multiplies nothing, the score above is untouched — but every
+  // tenth step shouts it across the scene.
+  if (G.time - G.chain.last <= 2.5) G.chain.n += 1;
+  else G.chain.n = 1;
+  G.chain.last = G.time;
+  if (G.chain.n % 10 === 0) {
+    floatText(G, e.x, e.y - e.radius - 30, `CHAIN x${G.chain.n}`, '#7dfcd8', 26);
+  }
   const mult = 1 + 0.1 * (G.night - 1);
   const gained = Math.round(def.score * mult);
   G.score += gained;
@@ -148,6 +201,14 @@ export function killEnemy(G, e) {
     });
   }
 
+  // Prism Shards: a wraith's facets sometimes survive its burning; a husk's always do.
+  if (e.type === 'elite' || (e.type === 'wraith' && G.rng() < PRISM.wraithDropChance)) {
+    G.pickups.push({
+      x: e.x + range(G.rng, -14, 14), y: e.y + range(G.rng, -14, 14),
+      t: 0, life: 25, kind: 'shard',
+    });
+  }
+
   if (G.stats.lightPerKill > 0) {
     G.player.light = Math.min(G.stats.maxLight, G.player.light + G.stats.lightPerKill);
   }
@@ -165,7 +226,7 @@ export function hurtPlayer(G, dmg, fromX, fromY) {
   if (p.wardT > 0) return; // the ward eats it; the attacker pays at the contact site
   p.hp -= dmg;
   p.hurtT = 0.3;
-  p.iframes = Math.max(p.iframes, 0.35); // a breath after any hit: a pile-up cannot melt in one frame
+  p.iframes = Math.max(p.iframes, 0.5); // a breath after any hit: a pile-up cannot melt in one frame
   G.shake = Math.max(G.shake, 5);
   G.sfx.hurt();
   burst(G, p.x, p.y, { n: 10, color: '#ff5a5a', speed: 130, size: 2.4, life: 0.4 });
@@ -241,12 +302,101 @@ export function updatePlayer(G, dt) {
   }
 }
 
+// ---------- prism shards ----------
+
+// Set a carried shard into the dark at the aim point, clamped to reach and to the
+// arena. The beam will refract on it (see updateBeam). Returns true when one was set.
+export function placePrism(G) {
+  if (G.screen !== 'playing' || G.prismCarried <= 0) return false;
+  if (G.prisms.length >= PRISM.placedMax) {
+    floatText(G, G.player.x, G.player.y - 36, 'THE DARK HOLDS NO MORE PRISMS', '#9be8ff', 13);
+    return false;
+  }
+  const p = G.player;
+  let dx = G.input.mouse.x - p.x, dy = G.input.mouse.y - p.y;
+  let d = Math.hypot(dx, dy);
+  if (d < 1) { dx = Math.cos(p.aim); dy = Math.sin(p.aim); d = 1; }
+  const dist = Math.min(Math.max(d, 40), PRISM.placeRange);
+  const x = Math.min(ARENA.x + ARENA.w - 22, Math.max(ARENA.x + 22, p.x + (dx / d) * dist));
+  const y = Math.min(ARENA.y + ARENA.h - 22, Math.max(ARENA.y + 22, p.y + (dy / d) * dist));
+  G.prisms.push({ x, y, t: 0, life: PRISM.lifeSeconds, seed: G.rng() * 10 });
+  G.prismCarried -= 1;
+  burst(G, x, y, { n: 12, color: '#9be8ff', speed: 70, size: 2, life: 0.4 });
+  G.toast?.('PRISM SET', 'Your beam will split on its facets');
+  G.sfx.ward();
+  return true;
+}
+
+// A set prism holds for PRISM.lifeSeconds, then shatters into sparks.
+export function updatePrisms(G, dt) {
+  for (let i = G.prisms.length - 1; i >= 0; i--) {
+    const pr = G.prisms[i];
+    pr.t += dt;
+    if (pr.t >= pr.life) {
+      burst(G, pr.x, pr.y, { n: 14, color: '#9be8ff', speed: 90, size: 2, life: 0.45 });
+      G.prisms.splice(i, 1);
+    }
+  }
+}
+
 // ---------- the beam ----------
+
+// The beam strikes a set prism and splits: two daughter beams at ±26° from the
+// incoming direction, each at 65% strength, each travelling what is left of the
+// beam's reach and burning the first shape on its path (a phased wraith is passed
+// over, exactly as the main beam passes over it). One level only — the daughters
+// never split again. The renderer reads the segments off G.beam.splits.
+function refract(G, dt, prism, prismAlong, dx, dy) {
+  const p = G.player, s = G.stats;
+  const beam = G.beam;
+  beam.splitFrom = prism;
+  beam.length = Math.max(20, prismAlong + PRISM.radius * 0.6);
+  G.splitEvents += 1;
+  const remain = Math.max(0, s.beamLength - (prismAlong + PRISM.radius));
+  const baseAng = Math.atan2(dy, dx);
+  let anyHit = false;
+  for (const sgn of [-1, 1]) {
+    const ang = baseAng + sgn * PRISM.splitAngle;
+    const sx = Math.cos(ang), sy = Math.sin(ang);
+    let bAlong = Infinity, bTarget = null;
+    for (const e of G.enemies) {
+      if (e.dead) continue;
+      if (e.type === 'wraith' && !e.solid) continue;
+      const ex = e.x - prism.x, ey = e.y - prism.y;
+      const along = ex * sx + ey * sy;
+      if (along < 0 || along > remain) continue;
+      const perp = Math.abs(ex * sy - ey * sx);
+      if (perp <= e.radius + s.beamHalfWidth && along - e.radius < bAlong) {
+        bAlong = along - e.radius;
+        bTarget = e;
+      }
+    }
+    const segLen = bTarget ? Math.max(20, bAlong + bTarget.radius * 0.6) : remain;
+    beam.splits.push({
+      x1: prism.x, y1: prism.y,
+      x2: prism.x + sx * segLen, y2: prism.y + sy * segLen,
+      ang, len: segLen, target: bTarget,
+    });
+    if (bTarget) {
+      anyHit = true;
+      damageEnemy(G, bTarget, s.beamDps * PRISM.splitDamage * dt);
+      if (G.rng() < dt * 22) {
+        burst(G, bTarget.x + range(G.rng, -6, 6), bTarget.y + range(G.rng, -6, 6), { n: 1, color: '#dff6ff', speed: 60, size: 2, life: 0.25 });
+      }
+    }
+  }
+  if (G.rng() < dt * 18) {
+    burst(G, prism.x, prism.y, { n: 1, color: '#ffffff', speed: 40, size: 2.2, life: 0.2 });
+  }
+  if (anyHit && G.time - G.lastHitSfx > 0.09) { G.lastHitSfx = G.time; G.sfx.hit(); }
+}
 
 export function updateBeam(G, dt) {
   const p = G.player, s = G.stats;
   const beam = G.beam;
   beam.target = null;
+  beam.splits = [];
+  beam.splitFrom = null;
   beam.length = s.beamLength;
   if (!beam.firing || G.screen !== 'playing') return;
   const dx = Math.cos(p.aim), dy = Math.sin(p.aim);
@@ -262,6 +412,24 @@ export function updateBeam(G, dt) {
       bestAlong = along - e.radius;
       best = e;
     }
+  }
+  // A set prism standing on the ray, nearer than any shape, takes the beam instead.
+  let prismAlong = Infinity, prismHit = null;
+  for (const pr of G.prisms) {
+    const ex = pr.x - p.x, ey = pr.y - p.y;
+    const along = ex * dx + ey * dy;
+    if (along < 0 || along > s.beamLength) continue;
+    const perp = Math.abs(ex * dy - ey * dx);
+    if (perp <= PRISM.radius + s.beamHalfWidth && along - PRISM.radius < prismAlong) {
+      prismAlong = along - PRISM.radius;
+      prismHit = pr;
+    }
+  }
+  if (prismHit && prismAlong < bestAlong) {
+    refract(G, dt, prismHit, prismAlong, dx, dy);
+    beam.hitX = p.x + dx * beam.length;
+    beam.hitY = p.y + dy * beam.length;
+    return;
   }
   if (best) {
     beam.target = best;
@@ -385,6 +553,11 @@ export function updateEnemies(G, dt) {
       } else if (p.iframes <= 0) {
         e.atkCd = 0.8;
         hurtPlayer(G, e.dmg, e.x, e.y);
+        // A bite costs the biter its ground: it recoils off the keeper and must
+        // close the distance again before it can bite once more. Without this a
+        // single shade could stay glued to the keeper and bite on its bare 0.8 s
+        // cadence forever, and a pack's ring never opened a gap to escape through.
+        e.kbx -= ux * 320; e.kby -= uy * 320;
         if (G.stats.thorns > 0) damageEnemy(G, e, G.stats.thorns, ux * -120, uy * -120);
       }
     }
@@ -438,6 +611,15 @@ export function updatePickups(G, dt) {
     pk.t += dt;
     if (pk.t > pk.life) { G.pickups.splice(i, 1); continue; }
     if (Math.hypot(pk.x - p.x, pk.y - p.y) < 26) {
+      if (pk.kind === 'shard') {
+        if (G.prismCarried >= PRISM.carryMax) continue; // hands full — it waits on the ground
+        G.prismCarried += 1;
+        G.toast?.('PRISM SHARD +1', 'Right-click or E to set it in the beam’s path');
+        burst(G, pk.x, pk.y, { n: 9, color: '#9be8ff', speed: 60, size: 2, life: 0.4 });
+        G.sfx.pickup();
+        G.pickups.splice(i, 1);
+        continue;
+      }
       p.light = Math.min(G.stats.maxLight, p.light + G.stats.oilValue);
       floatText(G, pk.x, pk.y - 14, `+${G.stats.oilValue} OIL`, '#ffc94d', 14);
       burst(G, pk.x, pk.y, { n: 9, color: '#ffc94d', speed: 60, size: 2, life: 0.4 });

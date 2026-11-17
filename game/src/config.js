@@ -34,8 +34,8 @@ export const LIGHT = {
   max: 100,
   drainPerSecond: 1.9,
   fireDrainPerSecond: 2.5,
-  oilValue: 12,
-  oilDropChance: 0.22,
+  oilValue: 14,
+  oilDropChance: 0.26,
 };
 
 // Enemy archetypes. `cost` is only flavour for the director; composition is tabled below.
@@ -103,6 +103,21 @@ export const BASE_STATS = {
   drainMult: 1,
   thorns: 0,
   lightPerKill: 0,
+};
+
+// Prism Shards — the signature refraction. A wraith's facets sometimes survive its
+// burning (35%); a Pyre Husk's always do. Carried shards are set into the dark
+// (right-click / E), and a beam that strikes a set prism splits into two daughter
+// beams at ±26°, each at 65% strength, each travelling what is left of the reach.
+export const PRISM = {
+  radius: 13,
+  wraithDropChance: 0.35,
+  carryMax: 2,
+  placedMax: 3,
+  placeRange: 260,
+  lifeSeconds: 25,
+  splitAngle: (26 * Math.PI) / 180,
+  splitDamage: 0.65,
 };
 
 export const SKILLS = {
