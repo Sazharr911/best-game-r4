@@ -61,6 +61,19 @@
   }
   #night-sub { font-size: 1cqw; letter-spacing: .24em; color: #93a5c9; }
 
+  /* boss bar: under the day tracker, only while a great shape lives */
+  #hud-boss { top: 11.6%; left: 50%; transform: translateX(-50%); width: 32%; text-align: center; }
+  #hud-boss.hidden { display: none; }
+  .boss-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 1.05cqw; font-weight: 800; letter-spacing: .22em; color: #ffb199;
+    text-shadow: 0 0 12px rgba(255, 90, 40, .5); margin-bottom: .35cqw;
+  }
+  #boss-pips .pip { color: rgba(255,255,255,.18); font-size: .95cqw; margin-left: .35cqw; }
+  #boss-pips .pip.on { color: #ff7043; text-shadow: 0 0 8px rgba(255, 90, 40, .8); }
+  .boss-bar { height: .62cqw; border-radius: 99px; background: rgba(255,255,255,.09); border: 1px solid rgba(255, 112, 67, .35); overflow: hidden; }
+  #boss-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #c62f3b, #ff7043, #ffb199); border-radius: 99px; transition: width .15s linear; }
+
   /* top left: vitals + incoming */
   #hud-vitals { top: 1.6%; left: 1.2%; width: 21.5%; }
   .bar-row { display: flex; align-items: center; gap: .7cqw; margin: .32cqw 0; }
@@ -79,6 +92,8 @@
   .score-line { font-size: 1.05cqw; letter-spacing: .2em; color: #93a5c9; line-height: 1.65; }
   .score-line b { color: #f2ecff; font-size: 1.5cqw; letter-spacing: .04em; margin-left: .6cqw; }
   .score-line.ember b { color: #ff9d45; }
+  .score-line.chain b { color: #7dfcd8; }
+  .score-line.chain.hidden { display: none; }
   .score-line.dim b { color: #93a5c9; font-size: 1.2cqw; }
 
   /* right sidebar */
@@ -180,6 +195,11 @@
     <div id="night-sub">DAWN AT DAY 100</div>
   </div>
 
+  <div id="hud-boss" class="hud hidden">
+    <div class="boss-row"><span id="boss-name">THE DREAD PYRE</span><span id="boss-pips"></span></div>
+    <div class="boss-bar"><div id="boss-fill"></div></div>
+  </div>
+
   <div id="hud-vitals" class="hud panel">
     <div class="bar-row"><span class="lab">HEALTH</span><div class="bar"><div id="bar-hp" class="fill hp"></div></div><span class="num" id="num-hp">100</span></div>
     <div class="bar-row"><span class="lab">LIGHT</span><div class="bar"><div id="bar-light" class="fill light"></div></div><span class="num" id="num-light">100</span></div>
@@ -195,6 +215,7 @@
 
   <div id="hud-score" class="hud">
     <div class="score-line">SCORE<b id="score">0</b></div>
+    <div class="score-line chain hidden" id="chain-line">CHAIN<b id="chain">×0</b></div>
     <div class="score-line dim">BEST<b id="best">0</b></div>
     <div class="score-line ember">EMBERS<b id="embers">0</b></div>
   </div>
@@ -218,6 +239,7 @@
     <div class="slot" id="slot-nova"><div class="glyph">✷</div><div class="sname">Flare Nova</div><div class="key">1</div><div class="cd"></div><div class="cdnum"></div></div>
     <div class="slot" id="slot-surge"><div class="glyph">✚</div><div class="sname">Oil Surge</div><div class="key">2</div><div class="cd"></div><div class="cdnum"></div></div>
     <div class="slot" id="slot-ward"><div class="glyph">◈</div><div class="sname">Mirror Ward</div><div class="key">3</div><div class="cd"></div><div class="cdnum"></div></div>
+    <div class="slot" id="slot-prism"><div class="glyph">◆</div><div class="sname">Prism ×0</div><div class="key">4</div><div class="cd"></div><div class="cdnum"></div></div>
     <div class="slot" id="slot-dash"><div class="glyph">≫</div><div class="sname">Dash</div><div class="key">SPC</div><div class="cd"></div><div class="cdnum"></div></div>
   </div>
 
@@ -238,6 +260,7 @@
     <div class="controls">
       <b>WASD</b> move &nbsp;·&nbsp; <b>MOUSE</b> aim &nbsp;·&nbsp; <b>HOLD LMB</b> lantern beam<br>
       <b>SPACE</b> dash &nbsp;·&nbsp; <b>1</b> Flare Nova &nbsp;·&nbsp; <b>2</b> Oil Surge (15 embers → +25 light) &nbsp;·&nbsp; <b>3</b> Mirror Ward<br>
+      <b>RIGHT-CLICK / E</b> set a Prism Shard — the beam splits on it &nbsp;·&nbsp; wraiths and Pyre Husks drop them<br>
       <b>ESC / P</b> pause &nbsp;·&nbsp; <b>M</b> mute
     </div>
     <button id="btn-start" class="big-btn">LIGHT THE LANTERN</button>
