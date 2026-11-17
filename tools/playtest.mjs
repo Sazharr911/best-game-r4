@@ -6,7 +6,7 @@
 //
 //   A (win):  ?fast=1 shortens nights; the bot kites, aims the beam at the nearest
 //             shape, dashes out of trouble, drafts blessings and must reach the
-//             DAWN BREAKS victory screen.
+//             DAY 100 — DAWN BREAKS victory screen.
 //   B (lose): the bot starts a normal run, holds the beam open and never feeds the
 //             lantern; the light must starve to zero into THE LIGHT DIES.
 //
@@ -181,7 +181,7 @@ async function scenarioWin(port) {
     check('A: blessing draft appeared', sawDraft);
     if (finalSnap?.screen === 'victory') {
       const title = await page.evaluate(`document.getElementById('end-title').textContent`);
-      check('A: victory screen says DAWN BREAKS', title === 'DAWN BREAKS', title);
+      check('A: victory screen says DAY 100 — DAWN BREAKS', title === 'DAY 100 — DAWN BREAKS', title);
     }
     check('A: zero console errors', page.problems().length === 0, page.problems().join(' | ').slice(0, 300));
   } finally {

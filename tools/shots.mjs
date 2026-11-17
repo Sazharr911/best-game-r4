@@ -12,7 +12,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '..');
 const GAME_ROOT = join(REPO, 'game');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const SETTLE = { cover: 1200, play: 1000, start: 700, end: 1100 };
+const SETTLE = { cover: 700, play: 1000, start: 700, end: 1100 };
 
 const shots = JSON.parse(readFileSync(join(REPO, 'shots.json'), 'utf8'));
 const { proc, base } = await launchChrome(9361);
