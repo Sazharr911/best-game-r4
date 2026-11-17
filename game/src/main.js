@@ -1,6 +1,7 @@
 // main.js — EMBERWARD's state machine and frame loop. Owns the shared game state G that
-// every other module reads and writes: title → playing (ten nights of spawn, beam and
-// burn) → intermission blessing drafts → victory at dawn or the dark taking the keeper.
+// every other module reads and writes: title → playing (the run from DAY 90 to the dawn
+// of DAY 100, ten nights of spawn, beam and burn) → intermission blessing drafts →
+// victory at dawn or the dark taking the keeper.
 //
 // The loop is a plain requestAnimationFrame with a clamped dt; all simulation lives in
 // entities.js / waves.js, all drawing in render.js, all DOM in hud.js.
@@ -28,7 +29,7 @@ const NIGHT_LINES = [
   'A husk of old fire walks again.',
   'Stalkers — slow in the light. Do not let it die.',
   'The wood itself seems to lean closer.',
-  'Half the night is behind you. Half is not.',
+  'Three nights stand between you and the dawn.',
   'The dark sends everything it has left.',
   'The last night. Hold until dawn.',
 ];
@@ -148,7 +149,7 @@ function startNight(n) {
   G.nightTotal = totalForNight(n, G.fast);
   G.spawnQueue = buildQueue(n, G.fast, G.rng);
   G.spawnTimer = 0.7;
-  hud.toast(`NIGHT ${n}`, NIGHT_LINES[n - 1]);
+  hud.toast(`DAY ${89 + n}`, NIGHT_LINES[n - 1]);
 }
 
 function beginRun() {
@@ -189,7 +190,7 @@ function enterIntermission() {
   G.screen = 'intermission';
   G.interT = G.fast ? 3 : INTERMISSION_SECONDS;
   G.beam.firing = false;
-  hud.toast(`NIGHT ${G.night} SURVIVED`, 'The dark pulls back to breathe. Choose.');
+  hud.toast(`DAY ${89 + G.night} SURVIVED`, 'The dark pulls back to breathe. Choose.');
   G.draft = rollDraft();
   hud.showDraft(G.draft, pickBlessing);
   G.sfx.draft();
@@ -260,7 +261,7 @@ function update(dt) {
     }
   } else if (G.screen === 'intermission') {
     G.interT -= dt;
-    hud.setDraftTimer(`THE NEXT NIGHT FALLS IN ${Math.max(0, Math.ceil(G.interT))} — OR CLICK A BLESSING`);
+    hud.setDraftTimer(`DAY ${89 + G.night + 1} AT DUSK IN ${Math.max(0, Math.ceil(G.interT))} — OR CLICK A BLESSING`);
     updatePlayer(G, dt);
     updatePickups(G, dt);
     updateParticles(G, dt);

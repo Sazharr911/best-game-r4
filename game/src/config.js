@@ -47,7 +47,7 @@ export const ENEMIES = {
   },
   howler: {
     name: 'Howler', hp: 16, speed: 152, radius: 10, contactDamage: 6,
-    score: 15, embers: [2, 2], color: '#ffb74d', glow: '#ff9100',
+    score: 15, embers: [2, 2], color: '#ff7a45', glow: '#ff6d00',
   },
   wraith: {
     name: 'Wraith', hp: 24, speed: 106, radius: 12, contactDamage: 9,
@@ -55,7 +55,7 @@ export const ENEMIES = {
   },
   stalker: {
     name: 'Stalker', hp: 42, speedLit: 56, speedDark: 210, radius: 13, contactDamage: 11,
-    score: 25, embers: [3, 3], color: '#8f6bff', glow: '#6a2bff',
+    score: 25, embers: [3, 3], color: '#cf4b8f', glow: '#f43f9e',
   },
   elite: {
     name: 'Pyre Husk', hp: 340, speed: 60, radius: 27, contactDamage: 16,
@@ -64,7 +64,9 @@ export const ENEMIES = {
   },
 };
 
-// What each night sends, in counts per type. Night 10's elite is the Dread Pyre.
+// What each night sends, in counts per type. The tenth night's (DAY 99's) elite is
+// the Dread Pyre. Player-facing copy counts days (DAY 90 + night - 1); these tables
+// stay keyed by night index.
 export const NIGHT_TABLE = [
   { shade: 6 },
   { shade: 9, howler: 2 },

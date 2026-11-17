@@ -9,6 +9,10 @@ import { countsForNight, nightProgress } from './waves.js';
 
 const $ = (id) => document.getElementById(id);
 
+// The Long Dark's calendar: the run opens on DAY 90 and dawn breaks on DAY 100.
+// Wave tables stay keyed by night index 1..10 internally; night n is DAY 89 + n.
+const dayOf = (night) => 89 + night;
+
 function fmtTime(sec) {
   const s = Math.max(0, Math.ceil(sec));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -45,15 +49,15 @@ export class Hud {
 
   update(G) {
     const p = G.player, s = G.stats;
-    this.el.nightLabel.textContent = `NIGHT ${G.night}/${TOTAL_NIGHTS}`;
+    this.el.nightLabel.textContent = `DAY ${dayOf(G.night)}`;
     this.el.dawnFill.style.width = `${(nightProgress(G) * 100).toFixed(1)}%`;
 
     if (G.screen === 'intermission') {
-      this.el.nightSub.textContent = 'THE DARK RESTS';
+      this.el.nightSub.textContent = 'DAWN AT DAY 100 — THE DARK RESTS';
     } else if (G.spawnQueue.length > 0 || G.nightTime < (G.fast ? 6 : NIGHT_SECONDS)) {
-      this.el.nightSub.textContent = `THE DARK THINS IN ${fmtTime((G.fast ? 7 : NIGHT_SECONDS) - G.nightTime)}`;
+      this.el.nightSub.textContent = `DAWN AT DAY 100 · THE DARK THINS IN ${fmtTime((G.fast ? 7 : NIGHT_SECONDS) - G.nightTime)}`;
     } else {
-      this.el.nightSub.textContent = 'CLEAR THE FIELD';
+      this.el.nightSub.textContent = 'DAWN AT DAY 100 · CLEAR THE FIELD';
     }
 
     this.el.hp.style.width = `${Math.max(0, (p.hp / s.maxHp) * 100)}%`;
@@ -81,7 +85,7 @@ export class Hud {
       const counts = countsForNight(G.night + 1, G.fast);
       sig = 'next' + JSON.stringify(counts);
       rows = Object.entries(counts).map(([t, n]) => `<li><span class="nm">${ENEMIES[t].name}</span><span class="cnt">×${n}</span></li>`).join('');
-      eta = `NIGHT ${G.night + 1} IN ${fmtTime(G.interT)} — CHOOSE A BLESSING`;
+      eta = `DAY ${dayOf(G.night + 1)} AT DUSK IN ${fmtTime(G.interT)} — CHOOSE A BLESSING`;
     } else {
       const left = {};
       for (const t of G.spawnQueue) left[t] = (left[t] || 0) + 1;
@@ -161,15 +165,15 @@ export class Hud {
   showPause(on) { this.el.pause.classList.toggle('hidden', !on); }
 
   showEnd({ victory, reason, G }) {
-    this.el.endTitle.textContent = victory ? 'DAWN BREAKS' : 'THE LIGHT DIES';
+    this.el.endTitle.textContent = victory ? 'DAY 100 — DAWN BREAKS' : 'THE LIGHT DIES';
     this.el.endSub.textContent = victory
-      ? 'Ten nights burned away. The Hollowood keeps its keeper — and its dawn.'
+      ? 'A hundred days of the Long Dark, ended at last. The Hollowood keeps its keeper — and its dawn.'
       : reason === 'light'
         ? 'The flame starved and went out, and the dark came in all at once.'
         : 'The shapes reached the keeper, and the lantern fell.';
     this.el.endStats.innerHTML =
       `SCORE <b>${G.score.toLocaleString('en-US')}</b> · BEST <b>${G.best.toLocaleString('en-US')}</b><br>` +
-      `NIGHTS SURVIVED <b>${victory ? TOTAL_NIGHTS : G.night - 1}</b> · KILLS <b>${G.kills}</b> · EMBERS HELD <b>${G.embers}</b>`;
+      `LAST DAY <b>${victory ? 100 : dayOf(G.night)}</b> · KILLS <b>${G.kills}</b> · EMBERS HELD <b>${G.embers}</b>`;
     this.el.end.classList.remove('hidden');
   }
   hideEnd() { this.el.end.classList.add('hidden'); }
