@@ -1,5 +1,9 @@
 # EMBERWARD — a lantern survival
 
+[![make.fun · best-game-01](https://make.fun/badge/best-game-01.svg)](https://make.fun/bounty/best-game-01?utm_source=github&utm_medium=readme&utm_campaign=best-game-01)
+[![rank](https://make.fun/badge/best-game-01/Sazharr911/best-game-r4/rank.svg)](https://make.fun/bounty/best-game-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=best-game-01)
+[![reward](https://make.fun/badge/best-game-01/Sazharr911/best-game-r4/reward.svg)](https://make.fun/bounty/best-game-01?utm_source=github&utm_medium=readme&utm_campaign=best-game-01)
+
 > You are the last lantern keeper of the Hollowood. The Long Dark has gripped the valley
 > for ninety days, and your flame is the only thing it still fears — but it drinks oil,
 > and the nights are long. Dawn breaks on DAY 100.
@@ -9,7 +13,8 @@ browser, written in vanilla JavaScript on a 2D canvas — no engine, no build st
 network. You take up the lantern on **DAY 90**; ten nights of escalating waves hunt it
 through a ritual-scarred forest clearing, each survived night striking one more day off
 the Long Dark. Burn them with your beam, gather the embers they drop, keep the oil
-flowing, and hold until dawn.
+flowing, and hold until dawn. Built for make.fun's best-game-01 bounty:
+https://make.fun/bounty/best-game-01
 
 You play a keeper, not a token: a hooded figure in a swaying gold-trimmed cloak, caged
 lantern in hand, whose light is a thin brilliant beam with a white-hot core — and whose
