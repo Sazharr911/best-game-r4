@@ -22,6 +22,25 @@ forest floor is etched with glowing cyan rune circles, the game's signature, bre
 under the lantern light while fireflies drift and the things in the dark leak colour
 long before they reach you.
 
+## The shape of the fight
+
+- **DAY 90 → DAY 100.** Ten nights stand between the keeper and the dawn; each night
+  survived strikes one more day off the Long Dark.
+- **5 hunter types.** Shade, Howler, Wraith, Stalker — and the Pyre Husk, whose death
+  pays out a Relic.
+- **Prism refraction — the signature mechanic.** Wraiths (35% on death) and Pyre Husks
+  (always) drop **Prism Shards**. Carry up to **2**, set up to **3** into the dark
+  (right-click / E; each holds 25 s): a beam that strikes a set prism **splits into two
+  beams at ±26°**, each at **65% damage**, each travelling the rest of the beam's reach.
+  One lantern, three lines of fire — the win needs none of it, and the dark hates all
+  of it.
+- **6 Relics** won from Husks, **10 Blessings** drafted one-of-three between nights.
+- **The Dread Pyre, in three phases.** The last night's Husk is a boss: at **66%** and
+  **33%** health it rages — a banner names the phase, two shades are called to its
+  side, and it fires a ring volley of **5** ember bolts, then **7** — while a boss bar
+  under the day tracker follows its health and lights its phase pips. Fell it, and
+  DAY 100 dawns.
+
 ## Play it
 
 ```sh
@@ -35,7 +54,7 @@ Any static file server pointed at `game/` works the same way. To hand the entry 
 
 Your lantern is your life twice over. Its **Light** gauge drains at **−1.9 per second**,
 always, and holding the beam open burns an extra **−2.5 per second**. Enemies sometimes
-drop **oil flasks (+12 Light)** when they die, and the Oil Surge skill trades embers for
+drop **oil flasks (+14 Light)** when they die, and the Oil Surge skill trades embers for
 light — but if the gauge ever reaches zero, the dark takes you on the spot. Your **Health**
 is the other way to die: things that reach you, bite.
 
@@ -55,6 +74,7 @@ held onto.
 | 1 | **Flare Nova** — radial burst: 70 damage + knockback to everything near (14 s cooldown) |
 | 2 | **Oil Surge** — convert 15 Embers into +25 Light (20 s cooldown) |
 | 3 | **Mirror Ward** — 6 s shield that reflects 18 damage to attackers (24 s cooldown) |
+| Right-click / E | **Set Prism** — set a carried Prism Shard at the aim point; the beam refracts through it, splitting ±26° at 65% damage |
 | Esc / P | Pause |
 | M | Mute |
 
@@ -70,16 +90,19 @@ held onto.
   Keeping your light radius wide is a weapon against it.
 - **Pyre Husk** — a great spiked elite, crowned in blackened shards around a molten
   heart, shedding embers as it orbits and spits ember bolts. It appears on nights
-  3, 5, 7, 9 and, grown huge, on the night of DAY 99 as **the Dread Pyre**. Killing one
-  wins a **Relic**. Live Husks are tracked in the **Threat Queue** on the right of the HUD.
+  3, 5, 7, 9 and, grown huge, on the night of DAY 99 as **the Dread Pyre** — a
+  three-phase boss that rages at 66% and 33% health, summoning shades and firing
+  ring volleys while the boss bar under the day tracker burns down with it. Killing
+  one wins a **Relic** and drops a **Prism Shard**, every time. Live Husks are also
+  tracked in the **Threat Queue** on the right of the HUD.
 
 ### The light economy
 
 - **Embers** are currency: every kill shakes some loose, and your lantern's magnet gathers
   the ones that drift close. Embers feed Oil Surge and nothing else — spend them before
   the dark spends you.
-- **Oil flasks** drop from about one kill in five (guaranteed, twice, from a Husk). They
-  are worth +12 Light each and expire after 22 seconds.
+- **Oil flasks** drop from about one kill in four (guaranteed, twice, from a Husk). They
+  are worth +14 Light each and expire after 22 seconds.
 - **Stamina** powers the dash and refills on its own; the dash also grants i-frames, so a
   well-timed dash is a dodge, not just a sprint.
 
@@ -127,9 +150,11 @@ under a **DAWN AT DAY 100** sub-line with the seconds the dark has left, and fil
 bar with your campaign progress. Top left tracks Health, Light (with its live burn rate)
 and Stamina above the **INCOMING** panel, which previews the coming night's exact
 composition between waves and counts what is still in the dark during one. Top right
-keeps Score, Best and Embers. The right sidebar lists the **Threat Queue** (live Husks,
-with health), your **Relics** and your **Blessings**. The bottom hotbar shows the three
-skills and the dash with cooldown sweeps.
+keeps Score, Best and Embers — and a **CHAIN ×N** counter while kills land within
+2.5 s of each other, with score popups floating off every kill. The right sidebar
+lists the **Threat Queue** (live Husks, with health), your **Relics** and your
+**Blessings**. The bottom hotbar shows the three skills, the **Prism** satchel
+(slot 4, shards carried), and the dash with cooldown sweeps.
 
 ## Files
 
